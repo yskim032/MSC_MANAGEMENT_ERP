@@ -2,6 +2,7 @@ import './style.css';
 import { loginUser, checkAuthState, logoutUser } from './src/auth';
 import { getRecentLogs, saveErpRows, getAllErpRows, deleteErpRows, saveVesselSchedules, getAllVesselSchedules, clearVesselSchedulesByPort, batchUpdateErpRows } from './src/db';
 import { parseExcel } from './src/excel-processor';
+import * as XLSX from 'xlsx';
 
 const app = document.querySelector('#app');
 let erpData = [];
@@ -14,10 +15,11 @@ let currentLoggedInUser = null;
 const renderLogin = (error = null) => {
   app.innerHTML = `
     <div class="auth-wrapper">
+      <canvas id="msc-bg-canvas"></canvas>
       <div class="auth-card">
         <div class="auth-header">
           <h1>MSC KOREA ERP</h1>
-          <p>Welcome back, please login</p>
+          <p>by The End : YS</p>
         </div>
         <form id="login-form">
           <div class="form-group">
@@ -35,6 +37,146 @@ const renderLogin = (error = null) => {
     </div>
   `;
 
+  // --- Soap Bubble Background Animation ---
+  const canvas = document.getElementById('msc-bg-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const resize = () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  };
+  resize();
+  window.addEventListener('resize', resize);
+
+  const NUM_BUBBLES = 45;
+  const RAINBOW_HUES = [0, 30, 60, 120, 180, 210, 270, 300];
+
+  const makeBubble = (randomY = false) => {
+    const r = Math.random() * 52 + 14;
+    const hue = RAINBOW_HUES[Math.floor(Math.random() * RAINBOW_HUES.length)];
+    return {
+      x: Math.random() * (canvas.width - r * 2) + r,
+      y: randomY ? Math.random() * canvas.height : canvas.height + r + Math.random() * 300,
+      r,
+      vx: (Math.random() - 0.5) * 1.2,
+      vy: (Math.random() - 0.5) * 1.2,
+      hue,
+      wobble: Math.random() * Math.PI * 2,
+      wobbleSpeed: Math.random() * 0.015 + 0.005,
+      glowPhase: Math.random() * Math.PI * 2,
+      glowSpeed: Math.random() * 0.025 + 0.01,
+    };
+  };
+
+  const bubbles = Array.from({ length: NUM_BUBBLES }, () => makeBubble(true));
+
+  const drawMarble = (b) => {
+    const { x, y, r, hue, glowPhase } = b;
+    const pulse = (Math.sin(glowPhase) + 1) / 2;   // 0 ~ 1
+    const glowRadius = r * (1.6 + pulse * 0.7);
+    const glowAlpha = 0.18 + pulse * 0.22;
+
+    // ── Outer pulsing neon glow ───────────────────────────────────────────────
+    ctx.save();
+    ctx.shadowColor = `hsl(${hue}, 100%, 65%)`;
+    ctx.shadowBlur = r * (1.8 + pulse * 1.4);
+    const outerGlow = ctx.createRadialGradient(x, y, r * 0.8, x, y, glowRadius);
+    outerGlow.addColorStop(0, `hsla(${hue}, 100%, 65%, ${glowAlpha})`);
+    outerGlow.addColorStop(1, `hsla(${hue}, 100%, 55%, 0)`);
+    ctx.beginPath();
+    ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+    ctx.fillStyle = outerGlow;
+    ctx.fill();
+    ctx.restore();
+
+    // ── Solid 3D sphere body ──────────────────────────────────────────────────
+    const sphere = ctx.createRadialGradient(
+      x - r * 0.38, y - r * 0.38, r * 0.04,
+      x + r * 0.1, y + r * 0.1, r * 1.05
+    );
+    sphere.addColorStop(0.00, `hsl(${hue}, 80%,  92%)`);
+    sphere.addColorStop(0.25, `hsl(${hue}, 90%,  70%)`);
+    sphere.addColorStop(0.60, `hsl(${hue}, 100%, 48%)`);
+    sphere.addColorStop(0.85, `hsl(${hue}, 100%, 28%)`);
+    sphere.addColorStop(1.00, `hsl(${hue}, 100%, 10%)`);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = sphere;
+    ctx.fill();
+
+    // ── Bright specular highlight (top-left) ──────────────────────────────────
+    const hl = ctx.createRadialGradient(
+      x - r * 0.34, y - r * 0.36, 0,
+      x - r * 0.18, y - r * 0.20, r * 0.46
+    );
+    hl.addColorStop(0, 'rgba(255,255,255,0.90)');
+    hl.addColorStop(0.4, 'rgba(255,255,255,0.35)');
+    hl.addColorStop(1, 'rgba(255,255,255,0.00)');
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = hl;
+    ctx.fill();
+
+    // ── Tiny secondary gleam (bottom-right) ──────────────────────────────────
+    const hl2 = ctx.createRadialGradient(
+      x + r * 0.42, y + r * 0.44, 0,
+      x + r * 0.42, y + r * 0.44, r * 0.18
+    );
+    hl2.addColorStop(0, 'rgba(255,255,255,0.55)');
+    hl2.addColorStop(1, 'rgba(255,255,255,0.00)');
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = hl2;
+    ctx.fill();
+  };
+
+  const animate = () => {
+    ctx.fillStyle = '#060d1f';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Vignette
+    const vign = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width * 0.8);
+    vign.addColorStop(0, 'rgba(10,16,40,0)');
+    vign.addColorStop(1, 'rgba(4,8,20,0.55)');
+    ctx.fillStyle = vign;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    bubbles.forEach(b => {
+      b.wobble += b.wobbleSpeed;
+      b.glowPhase += b.glowSpeed;
+
+      // Move
+      b.x += b.vx + Math.sin(b.wobble) * 0.25;
+      b.y += b.vy;
+
+      // Wall bounce — left / right
+      if (b.x - b.r < 0) {
+        b.x = b.r;
+        b.vx = Math.abs(b.vx);
+      } else if (b.x + b.r > canvas.width) {
+        b.x = canvas.width - b.r;
+        b.vx = -Math.abs(b.vx);
+      }
+
+      // Wall bounce — top / bottom
+      if (b.y - b.r < 0) {
+        b.y = b.r;
+        b.vy = Math.abs(b.vy);
+      } else if (b.y + b.r > canvas.height) {
+        b.y = canvas.height - b.r;
+        b.vy = -Math.abs(b.vy);
+      }
+
+      drawMarble(b);
+    });
+
+    requestAnimationFrame(animate);
+  };
+
+  animate();
+
+
+
   document.querySelector('#login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.querySelector('#email').value;
@@ -47,6 +189,7 @@ const renderLogin = (error = null) => {
     if (error) renderLogin(error);
   });
 };
+
 
 const renderLayout = (user) => {
   currentLoggedInUser = user;
@@ -149,20 +292,21 @@ const renderVesselSchedule = () => {
           <div class="header-controls-row">
             <button class="btn-action btn-apply" id="apply-mapping-btn">APPLY ETA</button>
             <div class="port-control">
-              <button class="btn-action btn-upload" id="btn-busan">BUSAN</button>
+              <button class="btn-action btn-port-busan" id="btn-busan">BUSAN</button>
               <button class="btn-action btn-delete" style="min-width: 80px; height: 30px; font-size: 0.7rem; margin-top: 8px;" id="clear-busan">CLEAR</button>
             </div>
             <div class="port-control">
-              <button class="btn-action btn-upload" id="btn-gwangyang">GWANGYANG</button>
+              <button class="btn-action btn-port-gwangyang" id="btn-gwangyang">GWANGYANG</button>
               <button class="btn-action btn-delete" style="min-width: 80px; height: 30px; font-size: 0.7rem; margin-top: 8px;" id="clear-gwangyang">CLEAR</button>
             </div>
             <div class="port-control">
-              <button class="btn-action btn-upload" id="btn-incheon">INCHEON</button>
+              <button class="btn-action btn-port-incheon" id="btn-incheon">INCHEON</button>
               <button class="btn-action btn-delete" style="min-width: 80px; height: 30px; font-size: 0.7rem; margin-top: 8px;" id="clear-incheon">CLEAR</button>
             </div>
           </div>
         </header>
 
+        <div id="vessel-port-stats" class="recap-row"></div>
         <div id="vessel-table-view" class="table-wrapper">
            <p style="padding: 20px; color: var(--text-muted);">Select a port and paste data to view schedule.</p>
         </div>
@@ -260,13 +404,37 @@ const formatDate = (dateStr) => {
   return dateStr;
 };
 
+// Port color map
+const PORT_COLORS = {
+  Busan: { bg: 'rgba(59,130,246,0.25)', text: '#93c5fd', border: '#3b82f6' },
+  Gwangyang: { bg: 'rgba(20,184,166,0.25)', text: '#5eead4', border: '#14b8a6' },
+  Incheon: { bg: 'rgba(249,115,22,0.25)', text: '#fdba74', border: '#f97316' },
+};
+
 const renderVesselTable = () => {
   const view = document.querySelector('#vessel-table-view');
+  const statsEl = document.querySelector('#vessel-port-stats');
   if (!view) return;
 
   if (vesselScheduleData.length === 0) {
     view.innerHTML = `<p style="padding: 20px; color: var(--text-muted);">No schedule data available. Click a port button to paste from clipboard.</p>`;
+    if (statsEl) statsEl.innerHTML = '';
     return;
+  }
+
+  // Count per port
+  const counts = { Busan: 0, Gwangyang: 0, Incheon: 0 };
+  vesselScheduleData.forEach(r => { if (counts[r.port] !== undefined) counts[r.port]++; });
+
+  // Render stats bar
+  if (statsEl) {
+    statsEl.innerHTML = Object.entries(counts).map(([port, count]) => {
+      return `
+        <div class="recap-item">
+          <span class="recap-label">${port.toUpperCase()}:</span>
+          <span class="recap-value">${count} vessels</span>
+        </div>`;
+    }).join('');
   }
 
   const headers = [
@@ -285,15 +453,17 @@ const renderVesselTable = () => {
                 </tr>
             </thead>
             <tbody>
-                ${vesselScheduleData.map(row => `
+                ${vesselScheduleData.map(row => {
+    const c = PORT_COLORS[row.port] || { bg: 'transparent', text: 'inherit', border: 'transparent' };
+    return `
                     <tr>
-                        <td>${row.port}</td>
+                        <td style="background:${c.bg}; color:${c.text}; font-weight: bold; text-align: center;">${row.port}</td>
                         <td style="color: var(--gold); font-weight: bold;">${row.vessel}</td>
                         <td>${row.eta}</td>
                         <td>${row.etd}</td>
                         <td>${row.service}</td>
-                    </tr>
-                `).join('')}
+                    </tr>`;
+  }).join('')}
             </tbody>
         </table>
     `;
@@ -639,6 +809,13 @@ const renderAnalysis = () => {
           </div>
         </div>
       </div>
+
+      <div class="analysis-list-section" style="margin-top:24px">
+        <h2 style="color: var(--gold); margin-bottom: 20px; font-size: 1.1rem;">Ref No. / Des. Recap (Alphabetical)</h2>
+        <div id="analysis-ref-list">
+          <!-- List items populated here -->
+        </div>
+      </div>
     </div>
   `;
 
@@ -679,6 +856,7 @@ const renderTimeline = (data) => {
   const timelineGroups = {};
   const supplierGroups = {};
   const shipperGroups = {};
+  const refGroups = {};
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -716,6 +894,23 @@ const renderTimeline = (data) => {
     }
     shipperGroups[shp].count++;
     shipperGroups[shp].rows.push(row);
+
+    // Ref No. Recap (flexible key lookup)
+    const refKey = Object.keys(row).find(k => k.toLowerCase().startsWith('ref')) || '';
+    const refVal = (refKey && row[refKey] ? row[refKey] : 'N/A').toString().trim() || 'N/A';
+    if (!refGroups[refVal]) {
+      refGroups[refVal] = {
+        name: refVal,
+        count: 0,
+        rows: [],
+        suppliers: new Set(),
+        shippers: new Set()
+      };
+    }
+    refGroups[refVal].count++;
+    refGroups[refVal].rows.push(row);
+    if (row.Supplier && row.Supplier !== 'N/A') refGroups[refVal].suppliers.add(row.Supplier);
+    if (row.Shipper && row.Shipper !== 'N/A') refGroups[refVal].shippers.add(row.Shipper);
   });
 
   // 1. Render Grid (Proximity Sorted)
@@ -756,11 +951,23 @@ const renderTimeline = (data) => {
 
   list.innerHTML = listSorted.map(group => {
     const isToday = group.eta === todayStr;
+    // Collect ALL ref descriptions (one per row), truncated - no dedup so count matches
+    // Use flexible key lookup to handle 'Ref No. / Des.' vs 'Ref No. / Description' etc.
+    const refKey = group.rows.length > 0
+      ? Object.keys(group.rows[0]).find(k => k.toLowerCase().startsWith('ref')) || ''
+      : '';
+    const refs = group.rows
+      .map(r => ((refKey && r[refKey]) || '').toString().trim())
+      .filter(Boolean);
+    const refTags = refs.length > 0
+      ? refs.map(ref => `<span class="cal-ref-tag">${ref.length > 28 ? ref.slice(0, 28) + '…' : ref}</span>`).join('')
+      : `<span class="cal-ref-tag" style="opacity:0.4;">—</span>`;
     return `
       <div class="analysis-list-item ${isToday ? 'highlight-today' : ''}" onclick="window.showAnalysisDetails('${group.vessel}', '${group.eta}')">
         <span class="list-date">${group.eta || 'NO DATE'}</span>
         <span class="list-vessel">${group.vessel}</span>
-        <span class="list-count">${group.count} DB</span>
+        <span class="cal-ref-list">${refTags}</span>
+        <span class="recap-value" style="font-size: 1.2rem;">${group.count}</span>
       </div>
     `;
   }).join('');
@@ -771,7 +978,7 @@ const renderTimeline = (data) => {
     supplierList.innerHTML = supSorted.map(g => `
       <div class="analysis-list-item" onclick="window.showGroupDetails('Supplier', '${g.name}')">
         <span class="list-vessel" style="margin-left:0">${g.name}</span>
-        <span class="list-count">${g.count} DB</span>
+        <span class="recap-value" style="font-size: 1.2rem;">${g.count}</span>
       </div>
     `).join('');
   }
@@ -782,18 +989,43 @@ const renderTimeline = (data) => {
     shipperList.innerHTML = shpSorted.map(g => `
       <div class="analysis-list-item" onclick="window.showGroupDetails('Shipper', '${g.name}')">
         <span class="list-vessel" style="margin-left:0">${g.name}</span>
-        <span class="list-count">${g.count} DB</span>
+        <span class="recap-value" style="font-size: 1.2rem;">${g.count}</span>
       </div>
     `).join('');
+  }
+
+  // 5. Render Ref No. / Des. List (Alphabetical)
+  const refList = document.querySelector('#analysis-ref-list');
+  if (refList) {
+    const refSorted = Object.values(refGroups).sort((a, b) => a.name.localeCompare(b.name));
+    refList.innerHTML = refSorted.map(g => {
+      const supTags = Array.from(g.suppliers).map(s => `<span class="cal-ref-tag" style="background:rgba(249,177,21,0.1); border-color:rgba(249,177,21,0.3); color:var(--gold);">${s}</span>`).join('');
+      const shpTags = Array.from(g.shippers).map(s => `<span class="cal-ref-tag" style="background:rgba(59,130,246,0.1); border-color:rgba(59,130,246,0.3); color:#93c5fd;">${s}</span>`).join('');
+
+      return `
+        <div class="analysis-list-item" onclick="window.showGroupDetails('Ref', '${g.name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">
+          <div style="display:flex; flex-direction:column; gap:4px; flex:1;">
+            <span class="list-vessel" style="margin-left:0; font-size:1rem;">${g.name}</span>
+            <div style="display:flex; flex-wrap:wrap; gap:4px;">${supTags}${shpTags}</div>
+          </div>
+          <span class="recap-value" style="font-size: 1.2rem;">${g.count}</span>
+        </div>
+      `;
+    }).join('');
   }
 
   window.lastAnalysisGroups = timelineGroups;
   window.lastSupplierGroups = supplierGroups;
   window.lastShipperGroups = shipperGroups;
+  window.lastRefGroups = refGroups;
 };
 
 window.showGroupDetails = (type, name) => {
-  const group = type === 'Supplier' ? window.lastSupplierGroups[name] : window.lastShipperGroups[name];
+  let group;
+  if (type === 'Supplier') group = window.lastSupplierGroups[name];
+  else if (type === 'Shipper') group = window.lastShipperGroups[name];
+  else if (type === 'Ref') group = window.lastRefGroups[name];
+
   if (!group) return;
 
   const modal = document.createElement('div');
@@ -801,8 +1033,15 @@ window.showGroupDetails = (type, name) => {
   modal.innerHTML = `
       <div class="modal" style="max-width: 950px; width: 95%;">
           <div class="modal-header">
-              <h2>${type}: ${name} (${group.count} items)</h2>
-              <button onclick="this.closest('.modal-backdrop').remove()">✕</button>
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <h2 style="margin:0;">${type}: ${name}</h2>
+                <div style="color:var(--text-muted); font-size:0.9rem;">Total ${group.count} items</div>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <button id="copy-group-btn" onclick="window.copyGroupTable('${type}', '${name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')" style="background:rgba(249,177,21,0.15); border:1px solid var(--gold); color:var(--gold); padding:4px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem;">📋 Copy</button>
+                <button onclick="window.exportGroupExcel('${type}', '${name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')" style="background:rgba(34,197,94,0.15); border:1px solid #22c55e; color:#22c55e; padding:4px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem;">📥 Excel</button>
+                <button onclick="this.closest('.modal-backdrop').remove()">✕</button>
+              </div>
           </div>
           <div class="table-wrapper" style="max-height: 500px; overflow-y: auto;">
               <table>
@@ -835,38 +1074,113 @@ window.showGroupDetails = (type, name) => {
   document.body.appendChild(modal);
 };
 
+window.copyGroupTable = (type, name) => {
+  let group;
+  if (type === 'Supplier') group = window.lastSupplierGroups[name];
+  else if (type === 'Shipper') group = window.lastShipperGroups[name];
+  else if (type === 'Ref') group = window.lastRefGroups[name];
+  if (!group) return;
+
+  const skipCols = new Set(['id', 'isNew', 'uploadDate', 'CIPL', 'MSDS', 'ETC']);
+  const headers = Object.keys(group.rows[0]).filter(k => !skipCols.has(k));
+  const tsv = [
+    headers.join('\t'),
+    ...group.rows.map(r => headers.map(h => r[h] ?? '').join('\t'))
+  ].join('\n');
+  navigator.clipboard.writeText(tsv).then(() => {
+    const btn = document.getElementById('copy-group-btn');
+    if (btn) { btn.textContent = '✓ Copied!'; setTimeout(() => btn.textContent = '📋 Copy', 1500); }
+  });
+};
+
+window.exportGroupExcel = (type, name) => {
+  let group;
+  if (type === 'Supplier') group = window.lastSupplierGroups[name];
+  else if (type === 'Shipper') group = window.lastShipperGroups[name];
+  else if (type === 'Ref') group = window.lastRefGroups[name];
+  if (!group) return;
+
+  const skipCols = new Set(['id', 'isNew', 'uploadDate', 'CIPL', 'MSDS', 'ETC']);
+  const headers = Object.keys(group.rows[0]).filter(k => !skipCols.has(k));
+  const sheetData = [
+    headers,
+    ...group.rows.map(r => headers.map(h => r[h] ?? ''))
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+  XLSX.writeFile(wb, `${type}_${name}.xlsx`);
+};
+
+window.copyAnalysisTable = (vessel, eta) => {
+  const key = `${vessel}|${eta}`;
+  const group = window.lastAnalysisGroups[key];
+  if (!group) return;
+  const skipCols = new Set(['id', 'isNew', 'uploadDate', 'CIPL', 'MSDS', 'ETC']);
+  const headers = Object.keys(group.rows[0]).filter(k => !skipCols.has(k));
+  const tsv = [
+    headers.join('\t'),
+    ...group.rows.map(r => headers.map(h => r[h] ?? '').join('\t'))
+  ].join('\n');
+  navigator.clipboard.writeText(tsv).then(() => {
+    const btn = document.getElementById('copy-analysis-btn');
+    if (btn) { btn.textContent = '✓ Copied!'; setTimeout(() => btn.textContent = '📋 Copy', 1500); }
+  });
+};
+
+window.exportAnalysisExcel = (vessel, eta) => {
+  const key = `${vessel}|${eta}`;
+  const group = window.lastAnalysisGroups[key];
+  if (!group) return;
+  const skipCols = new Set(['id', 'isNew', 'uploadDate', 'CIPL', 'MSDS', 'ETC']);
+  const headers = Object.keys(group.rows[0]).filter(k => !skipCols.has(k));
+  const sheetData = [
+    headers,
+    ...group.rows.map(r => headers.map(h => r[h] ?? ''))
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, vessel.slice(0, 31));
+  XLSX.writeFile(wb, `${vessel}_${eta}.xlsx`);
+};
+
 window.showAnalysisDetails = (vessel, eta) => {
   const key = `${vessel}|${eta}`;
   const group = window.lastAnalysisGroups[key];
   if (!group) return;
 
+  const skipCols = new Set(['id', 'isNew', 'uploadDate', 'CIPL', 'MSDS', 'ETC']);
+  // Derive headers from actual data keys to handle any Excel column name variation
+  const allHeaders = group.rows.length > 0
+    ? Object.keys(group.rows[0]).filter(k => !skipCols.has(k))
+    : [];
+
   const modal = document.createElement('div');
   modal.className = 'modal-backdrop';
   modal.innerHTML = `
-    <div class="modal" style="max-width: 900px; width: 95%;">
-        <div class="modal-header">
-            <h2>${vessel} (ETA: ${eta})</h2>
-            <button onclick="this.closest('.modal-backdrop').remove()">✕</button>
+    <div class="modal" style="width: fit-content; max-width: 98vw; padding: 16px;">
+        <div class="modal-header" style="margin-bottom: 12px;">
+            <h2 style="font-size: 1rem; color: var(--gold);">${vessel} &nbsp;|&nbsp; ETA: ${eta} &nbsp;|&nbsp; ${group.count} items</h2>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button id="copy-analysis-btn" onclick="window.copyAnalysisTable('${vessel.replace(/'/g, "\\'")}\'${eta}')" style="background:rgba(249,177,21,0.15); border:1px solid var(--gold); color:var(--gold); padding:4px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem;">📋 Copy</button>
+              <button onclick="window.exportAnalysisExcel('${vessel.replace(/'/g, "\\'")}\'${eta}')" style="background:rgba(34,197,94,0.15); border:1px solid #22c55e; color:#22c55e; padding:4px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem;">📥 Excel</button>
+              <button onclick="this.closest('.modal-backdrop').remove()">✕</button>
+            </div>
         </div>
-        <div class="table-wrapper" style="max-height: 400px; overflow-y: auto;">
-            <table>
+        <div class="table-wrapper" style="max-height: 90vh; overflow-y: auto; overflow-x: auto;">
+            <table style="font-size: 1rem; white-space: nowrap; table-layout: auto; width: auto; border-collapse: collapse;">
                 <thead style="position: sticky; top: 0; background: var(--header-bg); z-index: 1;">
                     <tr>
-                        <th>Client</th>
-                        <th>Supplier</th>
-                        <th>Shipper</th>
-                        <th>PO No</th>
-                        <th>Status</th>
+                        ${allHeaders.map(h => `<th style="padding: 6px 10px; white-space: nowrap;">${h}</th>`).join('')}
                     </tr>
                 </thead>
                 <tbody>
                     ${group.rows.map(r => `
                         <tr>
-                            <td>${r.Client || '-'}</td>
-                            <td>${r.Supplier || '-'}</td>
-                            <td>${r.Shipper || '-'}</td>
-                            <td>${r["PO No"] || '-'}</td>
-                            <td><span class="${r.Stored === 'Y' ? 'status-o' : 'status-x'}">${r.Stored === 'Y' ? 'O' : 'X'}</span></td>
+                            ${allHeaders.map(h => {
+    if (h === 'Stored') return `<td style="padding:4px 10px; text-align:center;"><span class="${r.Stored === 'Y' ? 'status-o' : 'status-x'}">${r.Stored === 'Y' ? 'O' : 'X'}</span></td>`;
+    return `<td style="padding: 4px 10px;">${r[h] || '-'}</td>`;
+  }).join('')}
                         </tr>
                     `).join('')}
                 </tbody>

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 95">
+  <!-- 
+    MSC Logo recreation:
+    - "m" large bold top
+    - wave/tilde line below m
+    - "sc" smaller, slightly right of center below wave
+    All in gold (#EED484) for dark background, matching MSC branding style
+  -->
+
+  <!-- Large "m" -->
+  <text
+    x="50"
+    y="50"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    font-family="'Arial Black','Arial Bold',Arial,sans-serif"
+    font-weight="900"
+    font-size="60"
+    fill="#EED484">m</text>
+
+  <!-- Wave line: two gentle humps, matching MSC tilde-shape -->
+  <!-- Starts left, curves up-down-up-down like two bumps -->
+  <path
+    d="M 8 62 C 16 54, 25 54, 33 62 C 41 70, 50 70, 58 62 C 66 54, 75 54, 83 62"
+    stroke="#EED484"
+    stroke-width="4"
+    fill="none"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- "sc" below the wave, right of center -->
+  <text
+    x="56"
+    y="90"
+    text-anchor="middle"
+    dominant-baseline="auto"
+    font-family="'Arial Black','Arial Bold',Arial,sans-serif"
+    font-weight="900"
+    font-size="27"
+    fill="#EED484">sc</text>
+</svg>
